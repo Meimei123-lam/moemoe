@@ -487,6 +487,7 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 .qa-adm .pl { padding: 3px 10px; font-size: 12px; }
 .lkbtn:focus, .pl:focus { outline: none; }
 .lkbtn:focus-visible, .pl:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+body:not(.is-admin) .adm { display: none !important; }
 </style>
 </head>
 <body>
@@ -506,7 +507,7 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
     <nav class="menu" id="menu" aria-label="Trang" hidden>
       <a class="tab" id="tab-home" href="#home">Trang chủ<span class="n" id="n-home"></span></a>
       <a class="tab" id="tab-qt" href="#qt">Truyện QT<span class="n" id="n-qt"></span></a>
-      <details class="bk" id="bk">
+      <details class="bk adm" id="bk">
         <summary>Sao lưu sau DDoS</summary>
         <p class="bk-note">Lưu bản sao danh sách truyện Trang chủ (.json) để nạp lại khi trang bị mất dữ liệu. Truyện trùng mã sẽ được cập nhật, truyện mới được thêm vào.</p>
         <div class="bk-btns">
@@ -583,7 +584,7 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
       <div class="tagrow sd-panel" id="tagrow" hidden></div>
     </div>
     <button class="tagreset" type="button" id="freset" aria-label="Bỏ tất cả bộ lọc" title="Bỏ tất cả bộ lọc"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 4v4.5H8"/></svg></button>
-    <button class="btn primary sm" type="button" id="add">+ Thêm truyện</button>
+    <button class="btn primary sm adm" type="button" id="add">+ Thêm truyện</button>
   </div>
 
   <div class="grid" id="grid"></div>
@@ -647,7 +648,7 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 <div class="scrim" id="dscrim" hidden>
   <div class="info" role="dialog" aria-modal="true" aria-label="Thông tin truyện">
     <div id="dbody"></div>
-    <div class="info-foot"><button class="pl" type="button" data-edit>Sửa</button><button class="pl" type="button" data-del>Xóa</button><button class="btn sm" type="button" id="dclose">Đóng</button></div>
+    <div class="info-foot"><button class="pl adm" type="button" data-edit>Sửa</button><button class="pl adm" type="button" data-del>Xóa</button><button class="btn sm" type="button" id="dclose">Đóng</button></div>
   </div>
 </div>
 
@@ -877,7 +878,7 @@ function storyCard(s, i, n, detail) {
       '<p class="intro" hidden>' + esc(s.intro || "Chưa có giới thiệu.") + '</p>' +
       '<hr class="dv">' +
       '<div class="lks">' + (links || '<span class="nolink">Chưa có link đọc.</span>') + '</div>' +
-      '<div class="acts"><button class="pl" type="button" data-edit>Sửa</button><button class="pl" type="button" data-del>Xóa</button></div>' +
+      '<div class="acts"><button class="pl adm" type="button" data-edit>Sửa</button><button class="pl adm" type="button" data-del>Xóa</button></div>' +
     '</div></div>';
 }
 
@@ -1258,11 +1259,42 @@ function arm(btn, fn) {
   setTimeout(function () { if (btn.isConnected) { btn.removeAttribute("data-armed"); btn.textContent = old; } }, 3000);
 }
 
+/* Chế độ admin: chủ trang (claude.ai) tự động; trên web riêng bấm 5 lần vào tên site rồi nhập mật khẩu */
+var ADM_KEY = "tl-admin", ADM_HASH = "fabac83a34f7922bdb9a065661f3cecc11e921377a8e29ba76d9d66e1822e041", adminReal = false, adminLocal = false;
+try { adminLocal = localStorage.getItem(ADM_KEY) === ADM_HASH; } catch (e) {}
+function applyAdmin() { document.body.classList.toggle("is-admin", adminLocal || adminReal); }
+function sha256(t) {
+  if (!(window.crypto && crypto.subtle)) return Promise.resolve("");
+  return crypto.subtle.digest("SHA-256", new TextEncoder().encode(t)).then(function (b) {
+    return Array.from(new Uint8Array(b)).map(function (x) { return ("0" + x.toString(16)).slice(-2); }).join("");
+  });
+}
+applyAdmin();
+(function () {
+  var n = 0, tm = 0, br = document.querySelector(".brand");
+  if (!br) return;
+  br.addEventListener("click", function () {
+    n++; clearTimeout(tm); tm = setTimeout(function () { n = 0; }, 2500);
+    if (n < 5) return;
+    n = 0;
+    if (adminLocal) {
+      if (confirm("Thoát chế độ admin trên máy này?")) { adminLocal = false; try { localStorage.removeItem(ADM_KEY); } catch (e) {} applyAdmin(); }
+      return;
+    }
+    var pw = prompt("Mật khẩu admin:");
+    if (!pw) return;
+    sha256(pw).then(function (h) {
+      if (h && h === ADM_HASH) { adminLocal = true; try { localStorage.setItem(ADM_KEY, ADM_HASH); } catch (e) {} applyAdmin(); alert("Đã bật chế độ admin."); }
+      else alert("Sai mật khẩu.");
+    });
+  });
+})();
+
 /* Kết nối kho dữ liệu và quyền biên tập */
 (function () {
   if (!window.claude || !claude.use) { qReady = true; return; }
   claude.use("user").then(function (u) { return u ? u.canEdit() : false; })
-    .then(function (v) { qEdit = !!v; if (route === "qt") renderQt(); }, function () {});
+    .then(function (v) { qEdit = !!v; adminReal = qEdit; applyAdmin(); if (route === "qt") renderQt(); }, function () {});
   claude.use("db").then(function (d) {
     qdb = d;
     if (!d) { qReady = true; syncTabs(); if (route === "qt") renderQt(); return; }
