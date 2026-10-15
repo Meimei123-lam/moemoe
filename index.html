@@ -1295,23 +1295,30 @@ applyAdmin();
 })();
 
 /* Kết nối kho dữ liệu và quyền biên tập */
+function qStart(d) {
+  qdb = d;
+  if (!d) { qReady = true; syncTabs(); if (route === "qt") renderQt(); return; }
+  d.collection("qt").onSnapshot(function (snap) {
+    qStories = snap.docs.map(function (x) { return Object.assign({ id: x.id }, x.data()); });
+    qReady = true; syncTabs(); if (route === "qt") renderQt();
+  }, function (e) { qErr = (e && e.code) || "unavailable"; qReady = true; if (route === "qt") renderQt(); });
+}
 (function () {
-  if (!window.claude || !claude.use) { qReady = true; return; }
+  if (!window.claude || !claude.use) {
+    setTimeout(function () { qStart(typeof FB !== "undefined" && FB.on() ? FB.qdb() : null); }, 0);
+    return;
+  }
   claude.use("user").then(function (u) { return u ? u.canEdit() : false; })
     .then(function (v) { qEdit = !!v; adminReal = qEdit; applyAdmin(); if (route === "qt") renderQt(); }, function () {});
   claude.use("db").then(function (d) {
-    qdb = d;
-    if (!d) { qReady = true; syncTabs(); if (route === "qt") renderQt(); return; }
-    d.collection("qt").onSnapshot(function (snap) {
-      qStories = snap.docs.map(function (x) { return Object.assign({ id: x.id }, x.data()); });
-      qReady = true; syncTabs(); if (route === "qt") renderQt();
-    }, function (e) { qErr = (e && e.code) || "unavailable"; qReady = true; if (route === "qt") renderQt(); });
+    if (!d && typeof FB !== "undefined" && FB.on()) d = FB.qdb();
+    qStart(d);
   }, function () { qReady = true; if (route === "qt") renderQt(); });
 })();
 
 /* Theo dõi danh sách chương của truyện đang mở (chỉ tiêu đề, nội dung tải khi đọc) */
 function qWatch(sid) {
-  if (qChSid === sid) return;
+  if (qChSid === sid && (qUnsubCh || !sid)) return;
   if (qUnsubCh) { qUnsubCh(); qUnsubCh = null; }
   qChSid = sid; qChapters = []; qChLoaded = false;
   if (!sid || !qdb) return;
@@ -1353,7 +1360,7 @@ function renderLib() {
   more.hidden = true; $("q-count").textContent = "";
   function msg(t, d) { box.innerHTML = '<div class="empty"><b>' + t + '</b>' + d + '</div>'; }
   if (!qReady) { msg("Đang tải", "Đang lấy danh sách truyện QT."); return; }
-  if (!qdb) { msg("Chưa mở được kho truyện QT", "Hãy đăng nhập claude.ai rồi mở lại trang để đọc và đăng chương."); return; }
+  if (!qdb) { msg("Chưa mở được kho truyện QT", "Kho chưa được kết nối. Hãy thử tải lại trang sau."); return; }
   if (qErr) { msg("Không tải được danh sách", "Thử tải lại trang sau ít phút."); return; }
   if (!qStories.length) { msg("Chưa có truyện QT", qEdit ? "Bấm + Thêm truyện QT để đăng truyện đầu tiên." : "Chưa có truyện QT nào được đăng."); return; }
   var q = qQuery.trim().toLowerCase();
@@ -1933,7 +1940,7 @@ $("gift-ico").onclick = openGift;
       .then(load, function () { note.textContent = "Không xóa được, thử lại sau."; });
   }
   function one(x, top) {
-    var can = (typeof qEdit !== "undefined" && qEdit) || mine().indexOf(x.id) !== -1;
+    var can = document.body.classList.contains("is-admin") || mine().indexOf(x.id) !== -1;
     return '<div class="sg" data-id="' + esc(x.id) + '"><div class="sg-h"><b>' + esc(x.n || "Ẩn danh") + '</b><span>' + ago(x.ts || 0) + '</span></div>' +
       '<p class="sg-t">' + esc(x.m) + '</p><div class="sg-b">' +
       (top ? '<button type="button" data-rep="' + esc(x.id) + '">Trả lời</button>' : '') +
@@ -2056,7 +2063,7 @@ var FB = (function () {
   function checkAdmin() {
     if (!auth || !on()) { adminFb = false; applyAdmin(); return Promise.resolve(false); }
     return db("GET", "admins/" + auth.uid).then(function (v) { return v === true; }, function () { return false; })
-      .then(function (v) { adminFb = v; applyAdmin(); return v; });
+      .then(function (v) { adminFb = v; applyAdmin(); qEdit = adminReal || v; if (typeof route !== "undefined" && route === "qt") renderQt(); return v; });
   }
   /* --- Kho truyện chung --- */
   function sk(id) { return String(id).replace(/[.$#\[\]\/]/g, "_"); }
@@ -2086,6 +2093,88 @@ var FB = (function () {
     return chain.then(function () { if (ops.length) status("Đã lưu lên kho chung (" + ops.length + " thay đổi)."); }, function (e) { status("Chưa lưu được lên kho chung: " + msgOf(e)); });
   }
   function push() { if (!adminFb || !base()) return; clearTimeout(pushT); pushT = setTimeout(function () { doPush(false); }, 700); }
+
+  /* --- Kho truyện QT trên Firebase (cùng giao diện với db của claude.ai) --- */
+  var subs = [];
+  function qmap(p) {
+    var a = p.split("/"), m = { chapters: "qtC", texts: "qtT", full: "qtF" };
+    if (a[0] !== "qt") return "other/" + p;
+    if (a.length === 1) return "qtS";
+    if (a.length === 2) return "qtS/" + a[1];
+    return m[a[2]] + "/" + a[1] + (a[3] ? "/" + a[3] : "");
+  }
+  function rd(path) { return jf(base() + "/" + path + ".json"); }
+  function snapOf(o, field) {
+    var ids = Object.keys(o || {}).filter(function (k) { return o[k] && typeof o[k] === "object"; });
+    if (field) ids.sort(function (a, b) { return (o[a][field] || 0) - (o[b][field] || 0); });
+    var docs = ids.map(function (id) { return { id: id, data: function () { return o[id]; } }; });
+    return { docs: docs, size: docs.length };
+  }
+  function wr(method, p, data) {
+    return db(method, qmap(p), data).then(function (r) { subs.slice().forEach(function (f) { f(); }); return r; });
+  }
+  function qdb() {
+    function coll(path, field) {
+      return {
+        orderBy: function (f) { return coll(path, f); },
+        get: function () { return rd(qmap(path)).then(function (o) { return snapOf(o, field); }); },
+        onSnapshot: function (cb, err) {
+          var alive = true, t = 0, last = null, first = true;
+          function tick() {
+            clearTimeout(t);
+            rd(qmap(path)).then(function (o) {
+              if (!alive) return;
+              var j = JSON.stringify(o || {});
+              if (first || j !== last) { first = false; last = j; cb(snapOf(o, field)); }
+            }, function (e) { if (alive && first) { first = false; err && err(e); } });
+            t = setTimeout(function () { if (document.hidden) { tick(); } else tick(); }, 45000);
+          }
+          subs.push(tick); tick();
+          return function () { alive = false; clearTimeout(t); subs = subs.filter(function (f) { return f !== tick; }); };
+        }
+      };
+    }
+    return {
+      collection: function (p) { return coll(p); },
+      doc: function (p) {
+        return {
+          get: function () { return rd(qmap(p)).then(function (v) { return { exists: v !== null && v !== undefined, data: function () { return v; } }; }); },
+          set: function (d) { return wr("PUT", p, d); },
+          update: function (d) { return wr("PATCH", p, d); },
+          delete: function () { return wr("DELETE", p); }
+        };
+      }
+    };
+  }
+  /* Chuyển dữ liệu QT từ kho claude.ai sang Firebase (chạy khi mở trang trong claude.ai) */
+  function migrate() {
+    if (!(window.claude && claude.use)) { status("Chỉ chuyển được khi mở trang bằng link claude.ai."); return; }
+    claude.use("db").then(function (src) {
+      if (!src) { status("Không mở được kho claude.ai."); return; }
+      var n = 0, chain = Promise.resolve();
+      function put(p, d) { chain = chain.then(function () { return db("PUT", qmap(p), d).then(function () { n++; status("Đã chuyển " + n + " mục…"); }); }); }
+      return src.collection("qt").get().then(function (ss) {
+        var stories = ss.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); });
+        return stories.reduce(function (pr, st) {
+          return pr.then(function () {
+            var d0 = Object.assign({}, st); delete d0.id; put("qt/" + st.id, d0);
+            return src.collection("qt/" + st.id + "/chapters").get().then(function (cs) {
+              var jobs = Promise.resolve();
+              cs.docs.forEach(function (c) {
+                put("qt/" + st.id + "/chapters/" + c.id, c.data());
+                jobs = jobs.then(function () { return src.doc("qt/" + st.id + "/texts/" + c.id).get().then(function (t) { if (t.exists) put("qt/" + st.id + "/texts/" + c.id, t.data()); }); });
+              });
+              for (var i = 1; i <= (st.fullParts || 0); i++) (function (i) {
+                var id = ("000000" + i).slice(-6);
+                jobs = jobs.then(function () { return src.doc("qt/" + st.id + "/full/" + id).get().then(function (t) { if (t.exists) put("qt/" + st.id + "/full/" + id, t.data()); }); });
+              })(i);
+              return jobs;
+            });
+          });
+        }, Promise.resolve());
+      }).then(function () { return chain; }).then(function () { status("Chuyển xong " + n + " mục. Mở trang trên GitHub để kiểm tra."); });
+    }).catch(function (e) { status("Chưa chuyển được: " + msgOf(e)); });
+  }
   /* --- Giao diện --- */
   function ensureBox() {
     if (box) return box;
@@ -2123,8 +2212,10 @@ var FB = (function () {
       '<div class="sug-form"><b style="font-size:14px">Kho truyện chung</b><p class="sug-note">Mọi thay đổi bạn sửa trên trang chủ tự lưu lên kho chung. Lần đầu, bấm nút dưới để đẩy toàn bộ danh sách hiện tại lên.</p><div class="sug-act"><p class="sug-note" data-fbmsg role="status"></p><button class="btn sm" type="button" data-fbpush>Đẩy dữ liệu lên kho</button></div></div>' +
       '<div class="sug-form" style="margin-top:10px"><b style="font-size:14px">Cấp quyền cho người khác</b>' + field("fb-ne", "email", "Email người mới") + field("fb-np", "text", "Mật khẩu cho họ (từ 6 ký tự)") +
       '<div class="sug-act"><p class="sug-note" data-fbmsg2 role="status"></p><button class="btn sm" type="button" data-fbadd>Tạo tài khoản admin</button></div><div class="sug-list" data-fblist></div></div>' +
+      '<div class="sug-form" style="margin-top:10px"><b style="font-size:14px">Truyện QT</b><p class="sug-note">Nếu trước đó bạn đã đăng truyện QT trên claude.ai, mở trang bằng link claude.ai, đăng nhập admin rồi bấm nút dưới để chuyển sang kho Firebase.</p><div class="sug-act"><p class="sug-note" data-fbmsg3 role="status"></p><button class="btn sm" type="button" data-fbmig>Chuyển QT từ claude.ai</button></div></div>' +
       '<div class="sug-act" style="margin-top:12px"><button class="btn sm" type="button" data-fbout>Đăng xuất</button></div>';
     b.querySelector("[data-fbout]").onclick = signOut;
+    b.querySelector("[data-fbmig]").onclick = function () { migrate(); };
     b.querySelector("[data-fbpush]").onclick = function () { status("Đang đẩy…"); doPush(true); };
     var m2 = b.querySelector("[data-fbmsg2]");
     function list() {
@@ -2155,7 +2246,7 @@ var FB = (function () {
   function signOut() { auth = null; persist(); adminFb = false; applyAdmin(); view(); }
   function open() { ensureBox().hidden = false; view(); }
   if (on()) { loadStories(); if (auth) checkAdmin(); }
-  return { on: on, open: open, push: push, base: base };
+  return { on: on, open: open, push: push, base: base, qdb: qdb };
 })();
 var _save0 = save;
 save = function () { _save0(); FB.push(); };
