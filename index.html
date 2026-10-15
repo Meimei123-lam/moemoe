@@ -96,11 +96,11 @@ button { cursor: pointer; }
 /* Header */
 .bar {
   position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20;
-  background: var(--bg); border-bottom: 1px solid var(--line);
-  margin-inline: calc(-1 * max(16px, env(safe-area-inset-left, 0px)));
-  padding-inline: max(16px, env(safe-area-inset-left, 0px));
+  max-width: 980px; margin: 8px auto 4px; padding-inline: 14px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 22px;
+  box-shadow: var(--shadow-sm);
 }
-.bar .wrap { position: relative; display: flex; align-items: center; gap: 10px; padding-block: 10px; }
+.bar .wrap { position: relative; display: flex; align-items: center; gap: 10px; padding-block: 7px; max-width: none; margin: 0; }
 .brand { display: flex; align-items: center; gap: 10px; font-family: var(--f-display); font-weight: 700; font-size: 20px; text-decoration: none; margin-right: auto; }
 .brand svg { color: var(--accent); flex: none; }
 .tab { text-decoration: none; padding: 5px 12px; border-radius: 999px; font-size: 13.5px; font-weight: 600; color: var(--muted); border: 1px solid transparent; white-space: nowrap; }
