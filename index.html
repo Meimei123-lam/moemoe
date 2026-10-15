@@ -1242,6 +1242,16 @@ function syncTabs() {
   $("tab-qt").setAttribute("aria-current", route === "qt" ? "page" : "false");
   $("n-qt").textContent = (qReady && qdb) ? qStories.length : "";
 }
+function readTxt(f) {
+  return f.arrayBuffer().then(function (buf) {
+    try { return new TextDecoder("utf-8", { fatal: true }).decode(buf).replace(/^\uFEFF/, ""); }
+    catch (e) {
+      var out = "";
+      ["gb18030", "big5", "utf-16le"].some(function (enc) { try { out = new TextDecoder(enc, { fatal: true }).decode(buf); return true; } catch (er) { return false; } });
+      return out || new TextDecoder("utf-8").decode(buf);
+    }
+  });
+}
 function pad6(n) { return ("000000" + n).slice(-6); }
 function bytes(s) { try { return new Blob([s]).size; } catch (e) { return s.length * 3; } }
 function qFind(id) { return qStories.filter(function (s) { return s.id === id; })[0]; }
@@ -1531,7 +1541,7 @@ function pickFull() {
     if (f.size > 40 * 1048576) { alert("File quá lớn (tối đa 40 MB)."); return; }
     rd.onerror = function () { alert("Không đọc được file này."); };
     rd.onload = function () {
-      var text = String(rd.result || ""), n = Math.ceil(text.length / FULL_PART), i = 0;
+      var text = String(rd.result_ || ""), n = Math.ceil(text.length / FULL_PART), i = 0;
       if (!text.trim()) { alert("File trống."); return; }
       var box = document.querySelector('[data-q="upfull"]');
       function lbl(t) { if (box) box.textContent = t; }
@@ -1546,7 +1556,7 @@ function pickFull() {
         return qdb.doc("qt/" + sid).update({ fullParts: n, fullSize: bytes(text), fullName: f.name, updatedAt: Date.now() });
       }).then(function () { lbl("Đã up xong"); }, function (er) { lbl("Up lỗi, thử lại"); alert(dbMsg(er, "Không up được file" + (er && (er.code || er.message) ? " (" + (er.code || er.message) + ")" : "") + ". Thử lại sau.")); });
     };
-    rd.readAsText(f, "utf-8");
+    readTxt(f).then(function (t) { rd.result_ = t; rd.onload(); }, function () { rd.onerror(); });
   };
   inp.click();
 }
@@ -1671,7 +1681,7 @@ $("c-files").addEventListener("change", function () {
   if (!files.length) { $("c-queue").innerHTML = ""; lock(false); return; }
   Promise.all(files.map(function (f) {
     if (f.size > 240000) return Promise.resolve({ name: f.name, big: true });
-    return f.text().then(function (t) { return { name: f.name, text: t }; });
+    return readTxt(f).then(function (t) { return { name: f.name, text: t }; });
   })).then(function (arr) {
     var next = maxNum() + 1, skipped = [];
     arr.forEach(function (a) {
@@ -2146,6 +2156,16 @@ var FB = (function () {
       }
     };
   }
+  function importQt(file, out) {
+    readTxt(file).then(function (t) {
+      var d = JSON.parse(t), jobs = [];
+      ["qtS", "qtC", "qtT", "qtF"].forEach(function (k) { Object.keys(d[k] || {}).forEach(function (id) { jobs.push([k + "/" + id, d[k][id]]); }); });
+      if (!jobs.length) { out("File không có dữ liệu QT."); return; }
+      var chain = Promise.resolve(), n = 0;
+      jobs.forEach(function (j) { chain = chain.then(function () { return db("PUT", j[0], j[1]).then(function () { n++; out("Đã nhập " + n + "/" + jobs.length + "…"); }); }); });
+      return chain.then(function () { out("Nhập xong " + jobs.length + " mục. Mở tab Truyện QT để kiểm tra."); subs.slice().forEach(function (f) { f(); }); });
+    }).catch(function (e) { out("Không nhập được: " + (e && e.message ? e.message : msgOf(e))); });
+  }
   /* Chuyển dữ liệu QT từ kho claude.ai sang Firebase (chạy khi mở trang trong claude.ai) */
   function migrate() {
     if (!(window.claude && claude.use)) { status("Chỉ chuyển được khi mở trang bằng link claude.ai."); return; }
@@ -2212,10 +2232,10 @@ var FB = (function () {
       '<div class="sug-form"><b style="font-size:14px">Kho truyện chung</b><p class="sug-note">Mọi thay đổi bạn sửa trên trang chủ tự lưu lên kho chung. Lần đầu, bấm nút dưới để đẩy toàn bộ danh sách hiện tại lên.</p><div class="sug-act"><p class="sug-note" data-fbmsg role="status"></p><button class="btn sm" type="button" data-fbpush>Đẩy dữ liệu lên kho</button></div></div>' +
       '<div class="sug-form" style="margin-top:10px"><b style="font-size:14px">Cấp quyền cho người khác</b>' + field("fb-ne", "email", "Email người mới") + field("fb-np", "text", "Mật khẩu cho họ (từ 6 ký tự)") +
       '<div class="sug-act"><p class="sug-note" data-fbmsg2 role="status"></p><button class="btn sm" type="button" data-fbadd>Tạo tài khoản admin</button></div><div class="sug-list" data-fblist></div></div>' +
-      '<div class="sug-form" style="margin-top:10px"><b style="font-size:14px">Truyện QT</b><p class="sug-note">Nếu trước đó bạn đã đăng truyện QT trên claude.ai, mở trang bằng link claude.ai, đăng nhập admin rồi bấm nút dưới để chuyển sang kho Firebase.</p><div class="sug-act"><p class="sug-note" data-fbmsg3 role="status"></p><button class="btn sm" type="button" data-fbmig>Chuyển QT từ claude.ai</button></div></div>' +
+      '<div class="sug-form" style="margin-top:10px"><b style="font-size:14px">Truyện QT</b><p class="sug-note">Nhập file dữ liệu QT (.json) mà mình gửi để đưa truyện đã đăng trên claude.ai sang kho Firebase.</p><div class="sug-act"><p class="sug-note" data-fbmsg3 role="status"></p><label class="btn sm" for="fb-qtfile">Nhập file QT</label><input class="cv-file" id="fb-qtfile" type="file" accept=".json,application/json"></div></div>' +
       '<div class="sug-act" style="margin-top:12px"><button class="btn sm" type="button" data-fbout>Đăng xuất</button></div>';
     b.querySelector("[data-fbout]").onclick = signOut;
-    b.querySelector("[data-fbmig]").onclick = function () { migrate(); };
+    b.querySelector("#fb-qtfile").onchange = function () { var f = this.files && this.files[0]; this.value = ""; if (f) importQt(f, function (t) { b.querySelector("[data-fbmsg3]").textContent = t; }); };
     b.querySelector("[data-fbpush]").onclick = function () { status("Đang đẩy…"); doPush(true); };
     var m2 = b.querySelector("[data-fbmsg2]");
     function list() {
