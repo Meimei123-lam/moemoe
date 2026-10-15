@@ -116,7 +116,7 @@ button { cursor: pointer; }
 .menu-btn { display: grid; place-items: center; flex: none; width: 36px; height: 36px; padding: 0; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
 .menu-btn:hover, .menu-btn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
 .menu { position: absolute; right: 0; top: calc(100% + 2px); z-index: 30; width: min(320px, 100%); display: grid; gap: 6px; padding: 10px; background: var(--surface); border: 2px dashed var(--dash); border-radius: 22px; box-shadow: var(--shadow); }
-.totop { position: fixed; outline: none; -webkit-tap-highlight-color: transparent; z-index: 35; right: max(12px, env(safe-area-inset-right, 0px)); bottom: max(16px, env(safe-area-inset-bottom, 0px)); padding: 0; border: 0; background: transparent; cursor: pointer; filter: drop-shadow(0 4px 8px rgba(120, 40, 60, .28)); transition: opacity .25s, transform .25s; }
+.totop { position: fixed; outline: none; -webkit-tap-highlight-color: transparent; z-index: 35; right: max(12px, env(safe-area-inset-right, 0px)); bottom: max(16px, env(safe-area-inset-bottom, 0px)); padding: 0; border: 0; background: transparent; cursor: pointer; transition: opacity .25s, transform .25s; }
 .totop[hidden] { display: none; }
 .totop.off { opacity: 0; transform: translateY(12px); pointer-events: none; }
 .totop:hover { transform: translateY(-3px); }
@@ -521,10 +521,10 @@ body:not(.is-admin) .adm { display: none !important; }
         </div>
         <p class="io-msg" id="io-msg" role="status" aria-live="polite"></p>
       </details>
-      <details class="bk" id="bk2">
-        <summary>Kết nối bình luận</summary>
+      <details class="bk adm" id="bk2">
+        <summary>Kết nối Firebase</summary>
         <p class="bk-note">Để mọi người cùng thấy bình luận mà không cần đăng nhập, dán đường dẫn Firebase Realtime Database của bạn vào đây (xem hướng dẫn trong khung Đề xuất). Để trống thì bình luận chỉ lưu trên máy này.</p>
-        <div class="bk-btns"><input class="cv-file" id="surl" type="url" placeholder="https://ten-du-an-default-rtdb.firebaseio.com" style="display:block;width:100%;padding:7px 12px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--ink)"><button class="btn sm" type="button" id="surl-save">Lưu kết nối</button></div>
+        <div class="bk-btns"><input class="cv-file" id="surl" type="url" placeholder="https://ten-du-an-default-rtdb.firebaseio.com" style="display:block;width:100%;padding:7px 12px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--ink)"><input class="cv-file" id="skey" type="text" placeholder="Web API key (để đăng nhập admin)" style="display:block;width:100%;padding:7px 12px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--ink)"><button class="btn sm" type="button" id="surl-save">Lưu kết nối</button></div>
         <p class="io-msg" id="surl-msg" role="status" aria-live="polite"></p>
       </details>
     </nav>
@@ -629,7 +629,7 @@ body:not(.is-admin) .adm { display: none !important; }
   </div>
 </main>
 
-<button class="sugfab" type="button" id="sugfab" aria-label="Đề xuất" title="Đề xuất"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12.5a7.5 7.5 0 0 1-10.9 6.7L4 20.5l1.3-4.2A7.5 7.5 0 1 1 20 12.5z"/><path d="M9 11.5h.01M12.5 11.5h.01M16 11.5h.01"/></svg><span class="dotn" id="sugn" hidden></span></button>
+<button class="sugfab" type="button" id="sugfab" aria-label="Đề xuất" title="Đề xuất"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v16H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M4 21.5V5.5"/><path d="M9 7h6"/><path d="M9 11h4"/></svg><span class="dotn" id="sugn" hidden></span></button>
 <div class="scrim" id="sscrim" hidden>
   <div class="sug" role="dialog" aria-modal="true" aria-label="Đề xuất">
     <div class="sug-top"><h2>ʚ˚₊‧ᵔᴗᵔ‧₊˚ɞ Đề xuất</h2><button class="btn sm" type="button" id="sclose">Đóng</button></div>
@@ -1262,9 +1262,10 @@ function arm(btn, fn) {
 }
 
 /* Chế độ admin: chủ trang (claude.ai) tự động; trên web riêng bấm 5 lần vào tên site rồi nhập mật khẩu */
+var FB_URL = "https://tu-truyen-ea73b-default-rtdb.asia-southeast1.firebasedatabase.app", FB_KEY = "AIzaSyC4slAVYVolfgIaLdsdAHacvXSZw3IK0b8", adminFb = false;  /* dán đường dẫn Firebase và API key vào đây để mọi người cùng dùng */
 var ADM_KEY = "tl-admin", ADM_HASH = "fabac83a34f7922bdb9a065661f3cecc11e921377a8e29ba76d9d66e1822e041", adminReal = false, adminLocal = false;
 try { adminLocal = localStorage.getItem(ADM_KEY) === ADM_HASH; } catch (e) {}
-function applyAdmin() { document.body.classList.toggle("is-admin", adminLocal || adminReal); }
+function applyAdmin() { document.body.classList.toggle("is-admin", adminLocal || adminReal || adminFb); }
 function sha256(t) {
   if (!(window.crypto && crypto.subtle)) return Promise.resolve("");
   return crypto.subtle.digest("SHA-256", new TextEncoder().encode(t)).then(function (b) {
@@ -1279,6 +1280,7 @@ applyAdmin();
     n++; clearTimeout(tm); tm = setTimeout(function () { n = 0; }, 2500);
     if (n < 5) return;
     n = 0;
+    if (typeof FB !== "undefined" && FB.on()) { FB.open(); return; }
     if (adminLocal) {
       if (confirm("Thoát chế độ admin trên máy này?")) { adminLocal = false; try { localStorage.removeItem(ADM_KEY); } catch (e) {} applyAdmin(); }
       return;
@@ -1873,7 +1875,7 @@ $("gift-ico").onclick = openGift;
 
 /* ===== Đề xuất / bình luận ===== */
 (function () {
-  var SUG_URL = "";  /* dán link Firebase RTDB vào đây nếu muốn gắn cứng, hoặc nhập trong menu */
+  var SUG_URL = FB_URL;  /* dán link Firebase RTDB vào đây nếu muốn gắn cứng, hoặc nhập trong menu */
   var KEY_URL = "tl-sug-url", KEY_LOC = "tl-sug-local", KEY_MINE = "tl-sug-mine", KEY_NAME = "tl-sug-name";
   var scr = $("sscrim"), fab = $("sugfab"), list = $("slist"), note = $("snote");
   var items = [], reply = null, timer = 0, lastSend = 0, loadErr = false, loaded = false;
@@ -2000,15 +2002,163 @@ $("gift-ico").onclick = openGift;
       .then(function () { btn.disabled = false; });
   });
   /* Kết nối kho chung */
-  $("surl").value = ls(KEY_URL) || "";
+  $("surl").value = ls(KEY_URL) || ""; $("skey").value = ls("tl-fb-key") || "";
   $("surl-save").onclick = function () {
     var v = $("surl").value.trim().replace(/\/+$/, ""), m = $("surl-msg");
     if (v && !/^https:\/\/[^\s]+$/.test(v)) { m.textContent = "Đường dẫn phải bắt đầu bằng https://"; return; }
-    ls(KEY_URL, v); m.textContent = v ? "Đã lưu. Mở Đề xuất để kiểm tra." : "Đã bỏ kết nối, bình luận lưu trên máy này.";
-    load();
+    ls(KEY_URL, v); ls("tl-fb-key", $("skey").value.trim());
+    m.textContent = v ? "Đã lưu. Đang tải lại trang…" : "Đã bỏ kết nối, bình luận lưu trên máy này.";
+    setTimeout(function () { location.reload(); }, 600);
   };
   load();
 })();
+
+/* ===== Firebase: đăng nhập admin thật + kho truyện chung ===== */
+var FB = (function () {
+  var K_URL = "tl-sug-url", K_KEY = "tl-fb-key", K_AUTH = "tl-fb-auth";
+  var auth = null, synced = {}, pushT = 0, box = null, ready = false;
+  function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} return null; }
+  function base() { var u = (ls(K_URL) || FB_URL || "").trim().replace(/\/+$/, ""); return /^https:\/\/[^\s]+$/.test(u) ? u : ""; }
+  function key() { return (ls(K_KEY) || FB_KEY || "").trim(); }
+  function on() { return !!(base() && key()); }
+  try { auth = JSON.parse(ls(K_AUTH) || "null"); } catch (e) { auth = null; }
+  function persist() { ls(K_AUTH, auth ? JSON.stringify(auth) : null); }
+  function msgOf(e) {
+    var m = (e && e.error && (e.error.message || e.error)) || (e && e.message) || "";
+    if (typeof m !== "string") m = "";
+    if (/INVALID_LOGIN|INVALID_PASSWORD|EMAIL_NOT_FOUND|INVALID_EMAIL/.test(m)) return "Sai email hoặc mật khẩu.";
+    if (/EMAIL_EXISTS/.test(m)) return "Email này đã có tài khoản.";
+    if (/WEAK_PASSWORD/.test(m)) return "Mật khẩu cần ít nhất 6 ký tự.";
+    if (/OPERATION_NOT_ALLOWED|ADMIN_ONLY/.test(m)) return "Chưa bật đăng nhập Email/Password trong Firebase Authentication.";
+    if (/Permission denied/i.test(m)) return "Không đủ quyền (kiểm tra lại Rules trên Firebase).";
+    if (/API key/i.test(m)) return "API key không đúng.";
+    return m || "Có lỗi, thử lại sau.";
+  }
+  function jf(url, opt) {
+    return fetch(url, opt).then(function (r) { return r.json().catch(function () { return null; }).then(function (j) { if (!r.ok) throw (j || { error: "HTTP " + r.status }); return j; }); });
+  }
+  function idt(path, body) {
+    return jf("https://identitytoolkit.googleapis.com/v1/accounts:" + path + "?key=" + encodeURIComponent(key()), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  }
+  function setAuth(j) { auth = { idToken: j.idToken, refreshToken: j.refreshToken, uid: j.localId, email: j.email, exp: Date.now() + (+j.expiresIn || 3600) * 1000 }; persist(); return auth; }
+  function token() {
+    if (!auth) return Promise.reject({ error: "Chưa đăng nhập." });
+    if (Date.now() < auth.exp - 60000) return Promise.resolve(auth.idToken);
+    return jf("https://securetoken.googleapis.com/v1/token?key=" + encodeURIComponent(key()), { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: "grant_type=refresh_token&refresh_token=" + encodeURIComponent(auth.refreshToken) })
+      .then(function (j) { auth.idToken = j.id_token; auth.refreshToken = j.refresh_token; auth.exp = Date.now() + (+j.expires_in || 3600) * 1000; persist(); return auth.idToken; },
+        function (e) { auth = null; persist(); adminFb = false; applyAdmin(); throw e; });
+  }
+  function db(method, path, data) {
+    return token().then(function (t) {
+      return jf(base() + "/" + path + ".json?auth=" + encodeURIComponent(t), data === undefined ? { method: method } : { method: method, body: JSON.stringify(data) });
+    });
+  }
+  function checkAdmin() {
+    if (!auth || !on()) { adminFb = false; applyAdmin(); return Promise.resolve(false); }
+    return db("GET", "admins/" + auth.uid).then(function (v) { return v === true; }, function () { return false; })
+      .then(function (v) { adminFb = v; applyAdmin(); return v; });
+  }
+  /* --- Kho truyện chung --- */
+  function sk(id) { return String(id).replace(/[.$#\[\]\/]/g, "_"); }
+  function norm(s) { s.genres = s.genres || []; s.links = s.links || []; return s; }
+  function loadStories() {
+    if (!base()) return Promise.resolve();
+    return jf(base() + "/stories.json").then(function (o) {
+      ready = true;
+      if (!o) return;
+      var arr = Object.keys(o).map(function (k) { return o[k]; }).filter(function (x) { return x && x.title; }).map(norm);
+      arr.sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); });
+      stories = arr; synced = {};
+      arr.forEach(function (s) { synced[sk(s.id)] = JSON.stringify(s); });
+      try { localStorage.setItem(KEY, JSON.stringify(stories)); } catch (e) {}
+      refresh();
+    }, function () { ready = true; });
+  }
+  function status(t) { if (box) { var m = box.querySelector("[data-fbmsg]"); if (m) m.textContent = t; } }
+  function doPush(force) {
+    if (!adminFb || !base()) return Promise.resolve();
+    var cur = {}, ops = [];
+    stories.forEach(function (s) { cur[sk(s.id)] = s; });
+    Object.keys(cur).forEach(function (k) { var j = JSON.stringify(cur[k]); if (force || synced[k] !== j) ops.push(function () { return db("PUT", "stories/" + k, cur[k]).then(function () { synced[k] = j; }); }); });
+    Object.keys(synced).forEach(function (k) { if (!(k in cur)) ops.push(function () { return db("DELETE", "stories/" + k).then(function () { delete synced[k]; }); }); });
+    var chain = Promise.resolve();
+    ops.forEach(function (f) { chain = chain.then(f); });
+    return chain.then(function () { if (ops.length) status("Đã lưu lên kho chung (" + ops.length + " thay đổi)."); }, function (e) { status("Chưa lưu được lên kho chung: " + msgOf(e)); });
+  }
+  function push() { if (!adminFb || !base()) return; clearTimeout(pushT); pushT = setTimeout(function () { doPush(false); }, 700); }
+  /* --- Giao diện --- */
+  function ensureBox() {
+    if (box) return box;
+    box = document.createElement("div"); box.className = "scrim"; box.hidden = true;
+    box.innerHTML = '<div class="sug" role="dialog" aria-modal="true" aria-label="Đăng nhập admin"><div class="sug-top"><h2>Admin</h2><button class="btn sm" type="button" data-fbclose>Đóng</button></div><div class="sug-in" data-fbbody></div></div>';
+    document.body.appendChild(box);
+    box.addEventListener("mousedown", function (e) { if (e.target === box) box.hidden = true; });
+    box.addEventListener("click", function (e) { if (e.target.closest("[data-fbclose]")) box.hidden = true; });
+    return box;
+  }
+  function field(id, type, ph) { return '<input id="' + id + '" type="' + type + '" placeholder="' + ph + '" autocomplete="off" style="border-radius:999px">'; }
+  function view() {
+    var b = ensureBox().querySelector("[data-fbbody]");
+    if (!auth) {
+      b.innerHTML = '<p class="sug-sub">Đăng nhập bằng tài khoản admin để đăng và chỉnh sửa truyện.</p><form class="sug-form" data-fblogin>' + field("fb-e", "email", "Email") + field("fb-p", "password", "Mật khẩu") +
+        '<div class="sug-act"><p class="sug-note" data-fbmsg role="status"></p><button class="btn primary" type="submit">Đăng nhập</button></div></form>';
+      b.querySelector("[data-fblogin]").onsubmit = function (e) {
+        e.preventDefault(); var m = b.querySelector("[data-fbmsg]"); m.textContent = "Đang đăng nhập…";
+        idt("signInWithPassword", { email: $("fb-e").value.trim(), password: $("fb-p").value, returnSecureToken: true })
+          .then(setAuth).then(checkAdmin).then(view, function (er) { m.textContent = msgOf(er); });
+      };
+      return;
+    }
+    if (!adminFb) {
+      b.innerHTML = '<p class="sug-sub">Đã đăng nhập: <b>' + esc(auth.email) + '</b>. Tài khoản này chưa có quyền admin.</p><div class="sug-form"><p class="sug-note">Nếu đây là tài khoản đầu tiên của kho (chưa có admin nào), bấm nhận quyền. Nếu không, nhờ admin hiện tại cấp quyền cho bạn.</p><div class="sug-act"><p class="sug-note" data-fbmsg role="status"></p><button class="btn primary" type="button" data-fbclaim>Nhận quyền admin đầu tiên</button><button class="btn sm" type="button" data-fbout>Đăng xuất</button></div></div>';
+      b.querySelector("[data-fbclaim]").onclick = function () {
+        status("Đang xử lý…");
+        db("PUT", "adminMeta/" + auth.uid, { email: auth.email }).then(function () { return db("PUT", "admins/" + auth.uid, true); })
+          .then(checkAdmin).then(view, function (e) { status("Không nhận được quyền: " + msgOf(e)); });
+      };
+      b.querySelector("[data-fbout]").onclick = signOut;
+      return;
+    }
+    b.innerHTML = '<p class="sug-sub">Đã đăng nhập: <b>' + esc(auth.email) + '</b> (admin).</p>' +
+      '<div class="sug-form"><b style="font-size:14px">Kho truyện chung</b><p class="sug-note">Mọi thay đổi bạn sửa trên trang chủ tự lưu lên kho chung. Lần đầu, bấm nút dưới để đẩy toàn bộ danh sách hiện tại lên.</p><div class="sug-act"><p class="sug-note" data-fbmsg role="status"></p><button class="btn sm" type="button" data-fbpush>Đẩy dữ liệu lên kho</button></div></div>' +
+      '<div class="sug-form" style="margin-top:10px"><b style="font-size:14px">Cấp quyền cho người khác</b>' + field("fb-ne", "email", "Email người mới") + field("fb-np", "text", "Mật khẩu cho họ (từ 6 ký tự)") +
+      '<div class="sug-act"><p class="sug-note" data-fbmsg2 role="status"></p><button class="btn sm" type="button" data-fbadd>Tạo tài khoản admin</button></div><div class="sug-list" data-fblist></div></div>' +
+      '<div class="sug-act" style="margin-top:12px"><button class="btn sm" type="button" data-fbout>Đăng xuất</button></div>';
+    b.querySelector("[data-fbout]").onclick = signOut;
+    b.querySelector("[data-fbpush]").onclick = function () { status("Đang đẩy…"); doPush(true); };
+    var m2 = b.querySelector("[data-fbmsg2]");
+    function list() {
+      db("GET", "adminMeta").then(function (o) {
+        o = o || {};
+        b.querySelector("[data-fblist]").innerHTML = Object.keys(o).map(function (u) {
+          return '<div class="sg"><div class="sg-h"><b>' + esc((o[u] && o[u].email) || u) + '</b>' + (u === auth.uid ? '<span>(bạn)</span>' : '') + '</div>' + (u === auth.uid ? '' : '<div class="sg-b"><button type="button" data-fbrev="' + esc(u) + '">Thu hồi quyền</button></div>') + '</div>';
+        }).join("");
+      }, function () {});
+    }
+    list();
+    b.querySelector("[data-fblist]").onclick = function (e) {
+      var r = e.target.closest("[data-fbrev]"); if (!r) return;
+      var u = r.getAttribute("data-fbrev");
+      if (!r.getAttribute("data-armed")) { r.setAttribute("data-armed", "1"); r.textContent = "Bấm lại để thu hồi"; return; }
+      db("DELETE", "admins/" + u).then(function () { return db("DELETE", "adminMeta/" + u); }).then(list, function (er) { m2.textContent = msgOf(er); });
+    };
+    b.querySelector("[data-fbadd]").onclick = function () {
+      var em = $("fb-ne").value.trim(), pw = $("fb-np").value;
+      if (!em || pw.length < 6) { m2.textContent = "Nhập email và mật khẩu (từ 6 ký tự)."; return; }
+      m2.textContent = "Đang tạo…";
+      idt("signUp", { email: em, password: pw, returnSecureToken: true }).then(function (j) {
+        return db("PUT", "adminMeta/" + j.localId, { email: em }).then(function () { return db("PUT", "admins/" + j.localId, true); });
+      }).then(function () { m2.textContent = "Đã tạo. Gửi email và mật khẩu cho họ nhé."; $("fb-ne").value = ""; $("fb-np").value = ""; list(); },
+        function (er) { m2.textContent = msgOf(er); });
+    };
+  }
+  function signOut() { auth = null; persist(); adminFb = false; applyAdmin(); view(); }
+  function open() { ensureBox().hidden = false; view(); }
+  if (on()) { loadStories(); if (auth) checkAdmin(); }
+  return { on: on, open: open, push: push, base: base };
+})();
+var _save0 = save;
+save = function () { _save0(); FB.push(); };
 
 /* ===== Nút lên đầu trang ===== */
 (function () {
